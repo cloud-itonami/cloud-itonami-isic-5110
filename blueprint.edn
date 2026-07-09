@@ -1,0 +1,11 @@
+{:itonami.blueprint/id "cloud-itonami-5110"
+ :itonami.blueprint/name "Community Passenger Air Transport"
+ :itonami.blueprint/isic-rev5 "5110"
+ :itonami.blueprint/domain :transport/passenger-air
+ :itonami.blueprint/license "AGPL-3.0-or-later"
+ :itonami.blueprint/social-impact [:aviation-safety :regional-connectivity :passenger-rights]
+ :itonami.blueprint/governor :aviation-safety-governor
+ :itonami.blueprint/robotics true
+ :itonami.blueprint/required-technologies [:robotics :identity :forms :dmn :bpmn :audit-ledger :logistics]
+ :itonami.blueprint/optional-technologies [:optimization]
+ :itonami.blueprint/status :public-oss}
