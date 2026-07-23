@@ -6,11 +6,15 @@
   (is (some? (facts/spec-basis "JPN")))
   (is (string? (:provenance (facts/spec-basis "JPN")))))
 
-(deftest all-four-seeded-jurisdictions-have-a-spec-basis
-  (doseq [iso3 ["JPN" "USA" "GBR" "DEU"]]
+(deftest all-five-seeded-jurisdictions-have-a-spec-basis
+  (doseq [iso3 ["JPN" "USA" "GBR" "DEU" "ARE"]]
     (is (some? (facts/spec-basis iso3)) (str iso3 " spec-basis"))
     (is (string? (:provenance (facts/spec-basis iso3))) (str iso3 " provenance"))
     (is (some? (facts/citation iso3)) (str iso3 " citation"))))
+
+(deftest are-has-a-spec-basis
+  (is (some? (facts/spec-basis "ARE")))
+  (is (string? (:provenance (facts/spec-basis "ARE")))))
 
 (deftest unknown-jurisdiction-has-no-fabricated-spec-basis
   (is (nil? (facts/spec-basis "ATL")))

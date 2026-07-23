@@ -62,7 +62,16 @@
           :required-evidence ["Lufttüchtigkeitszeugnisnachweis (airworthiness-certificate record)"
                               "Luftverkehrsbetreibergenehmigungsnachweis (air-operator-certificate record)"
                               "Besatzungslizenznachweis (crew-licensing record)"
-                              "Sicherheitsmanagementsystemnachweis (safety-management-system record)"]}})
+                              "Sicherheitsmanagementsystemnachweis (safety-management-system record)"]}
+   "ARE" {:name "United Arab Emirates"
+          :owner-authority "General Civil Aviation Authority of the U.A.E. (GCAA)"
+          :legal-basis "Federal Act No. (20) of 1991 (Civil Aviation Law), Art. 20 (rules of the air / overflight & route designation) + Federal Law No. (4) of 1996 (General Civil Aviation Authority Law), Art. 7(9) (Air Traffic Control operations in the State)"
+          :national-spec "GCAA Civil Aviation Regulations (CARs) -- UAE Air Operator / Air Navigation Service Provider operating-certificate and safety-oversight standards"
+          :provenance "https://www.gcaa.gov.ae/en/about-gcaa/aviation-laws-uae"
+          :required-evidence ["Airworthiness-certificate record"
+                              "Air-operator-certificate record"
+                              "Crew-licensing record"
+                              "Safety-management-system record"]}})
 
 (defn spec-basis
   "The jurisdiction's requirement map, or nil -- nil means NO spec-basis,
