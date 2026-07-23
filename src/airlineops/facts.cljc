@@ -71,6 +71,42 @@
           :required-evidence ["Airworthiness-certificate record"
                               "Air-operator-certificate record"
                               "Crew-licensing record"
+                              "Safety-management-system record"]}
+   ;; CAN citations independently fetched+read directly this session
+   ;; (2026-07-23) from laws-lois.justice.gc.ca's own FullText.html for
+   ;; both the parent Act and its operating regulations (both HTTP
+   ;; 200, no bot-detection challenge). Confirmed verbatim on the Act's
+   ;; own s.1 (Short Title): "This Act may be cited as the Aeronautics
+   ;; Act." and its own Interpretation clause: "Minister means (a)
+   ;; ... the Minister of Transport ...". Confirmed verbatim on the
+   ;; Canadian Aviation Regulations' (SOR/96-433) own Interpretation
+   ;; section: "air operator certificate means a certificate issued
+   ;; under Part VII that authorizes the holder of the certificate to
+   ;; operate a commercial air service"; "flight authority means a
+   ;; certificate of airworthiness, special certificate of
+   ;; airworthiness, flight permit or validation of a foreign document
+   ;; attesting to an aircraft's fitness for flight, issued under
+   ;; Subpart 7 of Part V"; "safety management system means a
+   ;; documented process for managing risks that integrates operations
+   ;; and technical systems with the management of financial and human
+   ;; resources to ensure aviation safety or the safety of the public";
+   ;; and Part IV/VI/VII exam-fee schedule references to "a flight
+   ;; crew licence" and "a flight crew permit" confirming the
+   ;; crew-licensing regime. HONEST GAP: this iteration did not
+   ;; independently confirm Transport Canada's own internal branding
+   ;; for its civil-aviation directorate (its own tc.canada.ca aviation
+   ;; page rendered only a small nav-shell, not substantive text) --
+   ;; this entry cites "Transport Canada" (the department, matching the
+   ;; Act's own "Minister of Transport" definition) rather than a more
+   ;; specific sub-branch name that was not independently verified.
+   "CAN" {:name "Canada"
+          :owner-authority "Transport Canada (Minister of Transport, per the Aeronautics Act's own definition)"
+          :legal-basis "Aeronautics Act (R.S.C., 1985, c. A-2); Canadian Aviation Regulations (SOR/96-433)"
+          :national-spec "Canadian Aviation Regulations' own definitions: air operator certificate (issued under Part VII, authorizing commercial air service); flight authority (certificate of airworthiness / special certificate of airworthiness / flight permit, issued under Subpart 7 of Part V); safety management system (documented risk-management process integrating operations/technical/financial/human-resource management for aviation safety); flight crew licence/permit examination and issuance fee schedule (Parts IV/VI/VII)"
+          :provenance "https://laws-lois.justice.gc.ca/eng/acts/a-2/ ; https://laws-lois.justice.gc.ca/eng/regulations/SOR-96-433/"
+          :required-evidence ["Airworthiness-certificate record"
+                              "Air-operator-certificate record"
+                              "Crew-licensing record"
                               "Safety-management-system record"]}})
 
 (defn spec-basis
