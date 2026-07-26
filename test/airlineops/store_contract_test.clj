@@ -18,7 +18,10 @@
       (is (false? (:certification-verified? (store/flight s "flight-3"))))
       (is (true? (:safety-concern-raised? (store/flight s "flight-4"))))
       (is (false? (:safety-concern-resolved? (store/flight s "flight-4"))))
-      (is (= ["flight-1" "flight-2" "flight-3" "flight-4" "flight-5"]
+      ;; flight-6 is the deliberately-FULL flight the oversell check is
+      ;; exercised against (60 capacity, 60 sold) -- see
+      ;; reservation_commerce_test.
+      (is (= ["flight-1" "flight-2" "flight-3" "flight-4" "flight-5" "flight-6"]
              (mapv :id (store/all-flights s))))
       (is (= [] (store/ledger s)))
       (is (= [] (store/coordination-history s)))

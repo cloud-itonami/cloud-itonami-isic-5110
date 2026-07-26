@@ -3,21 +3,28 @@
  ;; all .cljc -> portable to JVM / SCI / ClojureScript / GraalVM). It lives
  ;; in the kotoba-lang org of this workspace.
  ;;
- ;; This vertical is SELF-CONTAINED: there is no `kotoba-lang/aviation`
- ;; bespoke domain capability library to delegate airworthiness-
- ;; certificate / air-operator-certificate validation to (grep-checked --
- ;; `kotoba-lang` has no aviation-domain package), so the certification-
+ ;; The OPERATIONS half of this vertical is self-contained: there is no
+ ;; `kotoba-lang/aviation` package to delegate airworthiness-certificate
+ ;; / air-operator-certificate validation to, so the certification-
  ;; verification / open-safety-concern / finalization-scope checks live
- ;; as pure functions in `airlineops.registry`/`airlineops.governor`
- ;; rather than wrapping an external lib -- the SAME honest pattern
- ;; `cloud-itonami-isic-5020` (marine tanker) and `cloud-itonami-isic-5210`
- ;; (warehousing) use for their own self-contained verticals.
+ ;; as pure functions in `airlineops.registry`/`airlineops.governor`.
+ ;;
+ ;; The COMMERCIAL half is not, and deliberately so:
+ ;; `kotoba-lang/reservation` supplies the seat inventory and rate-plan
+ ;; arithmetic that `airlineops.governor` RECOMPUTES a proposal's
+ ;; availability and fare against (checks 7 and 8). That recompute is
+ ;; the whole reason the dependency exists -- without it the governor
+ ;; could only restate whatever total the advisor claimed. It is
+ ;; integer-only and clock-free precisely so the recompute is
+ ;; bit-identical to the advisor's own computation.
  ;;
  ;; This repo is standalone (forkable outside the workspace); the
  ;; :local/root paths only resolve inside the monorepo checkout -- a
  ;; standalone fork should override them with git coordinates.
  :deps {io.github.kotoba-lang/langgraph
-        {:local/root "../../kotoba-lang/langgraph"}}
+        {:local/root "../../kotoba-lang/langgraph"}
+        io.github.kotoba-lang/reservation
+        {:local/root "../../kotoba-lang/reservation"}}
  :aliases
  {;; offline workspace dev -- pin transitive langchain to local checkout
   :dev {:override-deps

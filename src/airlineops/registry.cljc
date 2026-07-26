@@ -25,14 +25,18 @@
   {:log-flight-record         "LOG"
    :schedule-flight-operation "SCH"
    :flag-flight-safety-concern "SAF"
-   :coordinate-maintenance    "MNT"})
+   :coordinate-maintenance    "MNT"
+   :quote-fare                "FAR"
+   :place-booking             "BKG"})
 
 (def op->kind
   "op -> the `:kind` tag stored on the committed record."
   {:log-flight-record         "flight-record-log-draft"
    :schedule-flight-operation "flight-schedule-draft"
    :flag-flight-safety-concern "flight-safety-concern-flag-draft"
-   :coordinate-maintenance    "maintenance-coordination-draft"})
+   :coordinate-maintenance    "maintenance-coordination-draft"
+   :quote-fare                "fare-quote-draft"
+   :place-booking             "seat-booking-hold-draft"})
 
 (defn- unsigned-certificate
   "Every certificate this actor produces is UNSIGNED -- signature is
@@ -58,8 +62,15 @@
   RECORD an operations coordinator would keep. `airlineops.governor`
   independently re-verifies the flight's own certification-verified
   ground truth and open-safety-concern status before this is ever
-  allowed to commit."
-  [op flight-id jurisdiction sequence]
+  allowed to commit.
+
+  The 5-arity carries an op-specific `payload` (the advisor's `:value`)
+  for the commercial ops -- the recomputed quote for `:quote-fare`, the
+  hold for `:place-booking`. The 4-arity is the original operations
+  form and drafts a record with no payload."
+  ([op flight-id jurisdiction sequence]
+   (register-coordination-record op flight-id jurisdiction sequence nil))
+  ([op flight-id jurisdiction sequence payload]
   (when-not (contains? op->code op)
     (throw (ex-info "register-coordination-record: op must be in the closed allowlist" {:op op})))
   (when-not (and flight-id (not= flight-id ""))
@@ -71,14 +82,15 @@
   (let [code (op->code op)
         kind (op->kind op)
         record-id (str (str/upper-case jurisdiction) "-" code "-" (zero-pad sequence 6))
-        record {"record_id" record-id
-                "kind" kind
-                "op" (name op)
-                "flight_id" flight-id
-                "jurisdiction" jurisdiction
-                "immutable" true}]
+        record (cond-> {"record_id" record-id
+                        "kind" kind
+                        "op" (name op)
+                        "flight_id" flight-id
+                        "jurisdiction" jurisdiction
+                        "immutable" true}
+                 (some? payload) (assoc "payload" payload))]
     {"record" record "record_id" record-id
-     "certificate" (unsigned-certificate kind record-id record-id)}))
+     "certificate" (unsigned-certificate kind record-id record-id)})))
 
 (defn append [history result]
   (conj (vec history) (get result "record")))

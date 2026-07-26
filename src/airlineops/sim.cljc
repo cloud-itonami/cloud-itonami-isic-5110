@@ -16,10 +16,25 @@
   the SAME 'exercise the failure mode directly, never only via a
   happy-path actuation' discipline this fleet establishes."
   (:require [langgraph.graph :as g]
+            [airlineops.airlineopsllm :as llm]
             [airlineops.store :as store]
             [airlineops.operation :as op]))
 
 (def operator {:actor-id "op-1" :actor-role :ops-coordinator :phase 3})
+
+;; The commercial ops only become writable at phase 4 -- deliberately
+;; after the operations ops, so an operator can run this actor's ops
+;; surface without ever turning on its commercial surface.
+(def commercial-operator {:actor-id "op-1" :actor-role :revenue-coordinator :phase 4})
+
+(defn- lying-advisor
+  "An advisor that states a fare it did not compute -- the failure mode
+  the governor's independent recompute exists to catch. Not a
+  hypothetical: an LLM asked for a fare will happily produce a
+  plausible number."
+  []
+  (reify llm/Advisor
+    (-advise [_ st req] (assoc-in (llm/infer st req) [:value :total] 1))))
 
 (defn- exec-op [actor tid request context]
   (g/run* actor {:request request :context context} {:thread-id tid}))
@@ -73,6 +88,39 @@
     (let [r (exec-op actor "t10" {:op :coordinate-maintenance :subject "flight-5" :maintenance-kind :parts-request} operator)]
       (println r)
       (println (approve! actor "t10")))
+
+    ;; NOTE the ordering: the commercial scenarios deliberately run on
+    ;; flight-5, NOT flight-1 -- flight-1 has an open safety concern by
+    ;; this point in the demo, so every op on it is already held and the
+    ;; commercial checks would never be reached. Exercising a check
+    ;; requires reaching it.
+    (println "== quote-fare flight-5 (phase 4; escalates -- total recomputed by the governor) ==")
+    (let [r (exec-op actor "t11" {:op :quote-fare :subject "flight-5" :qty 1} commercial-operator)]
+      (println r)
+      (println (approve! actor "t11")))
+
+    (println "== place-booking flight-6 1 seat on a FULL flight (-> HARD hold, oversell recomputed) ==")
+    (println (exec-op actor "t12" {:op :place-booking :subject "flight-6" :qty 1} commercial-operator))
+
+    (println "== place-booking flight-5 3 seats, only 2 left (-> HARD hold, oversell recomputed) ==")
+    (println (exec-op actor "t13" {:op :place-booking :subject "flight-5" :qty 3} commercial-operator))
+
+    (println "== place-booking flight-5 2 seats, exactly what is left (escalates; inventory MOVES) ==")
+    (let [before (store/flight db "flight-5")
+          r (exec-op actor "t14" {:op :place-booking :subject "flight-5" :qty 2
+                                  :hold-id "h-1" :expires-at "2026-07-27T12:00:00Z"} commercial-operator)]
+      (println r)
+      (println (approve! actor "t14"))
+      (println "  seats held before/after:"
+               (:inv/held (:bucket before)) "->"
+               (:inv/held (:bucket (store/flight db "flight-5")))))
+
+    (println "== quote-fare via an advisor that STATES a fare it did not compute (-> HARD hold) ==")
+    (let [liar (op/build db {:advisor (lying-advisor)})]
+      (println (exec-op liar "t15" {:op :quote-fare :subject "flight-5" :qty 1} commercial-operator)))
+
+    (println "== quote-fare flight-5 at phase 3 (commerce not enabled -> HOLD :phase-disabled) ==")
+    (println (exec-op actor "t16" {:op :quote-fare :subject "flight-5" :qty 1} operator))
 
     (println "== audit ledger ==")
     (doseq [f (store/ledger db)] (println f))

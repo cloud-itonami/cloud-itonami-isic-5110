@@ -32,11 +32,21 @@
 
 (def read-ops  #{})
 (def write-ops #{:log-flight-record :schedule-flight-operation
-                  :flag-flight-safety-concern :coordinate-maintenance})
+                  :flag-flight-safety-concern :coordinate-maintenance
+                  :quote-fare :place-booking})
 
 ;; NOTE the invariant: `:flag-flight-safety-concern` is a member of
 ;; `write-ops` (governor-gated like any write) but is NEVER a member
 ;; of any phase's `:auto` set below. Do not add it there.
+;;
+;; The two commercial ops are likewise never auto at ANY phase:
+;; `:place-booking` moves real inventory (it places a hold against a
+;; seat bucket) and money follows inventory, and `:quote-fare` is a
+;; commercial commitment a passenger can rely on even though it moves
+;; nothing. Phase 4 (`assisted-commerce`) is where they become
+;; writable at all -- deliberately AFTER the operations ops, so an
+;; operator can run this actor's ops surface without ever turning on
+;; its commercial surface.
 (def phases
   "phase -> {:label .. :writes <ops allowed to write> :auto <ops allowed to
   auto-commit when governor-clean>}."
@@ -44,7 +54,10 @@
    1 {:label "assisted-logging"   :writes #{:log-flight-record :flag-flight-safety-concern}                            :auto #{}}
    2 {:label "assisted-coord"     :writes #{:log-flight-record :flag-flight-safety-concern :schedule-flight-operation
                                              :coordinate-maintenance}                                                    :auto #{}}
-   3 {:label "supervised-auto"    :writes write-ops
+   3 {:label "supervised-auto"    :writes #{:log-flight-record :flag-flight-safety-concern :schedule-flight-operation
+                                             :coordinate-maintenance}
+      :auto #{:log-flight-record}}
+   4 {:label "assisted-commerce"  :writes write-ops
       :auto #{:log-flight-record}}})
 
 (def default-phase 3)

@@ -36,6 +36,7 @@
   (:require #?(:clj  [clojure.edn :as edn]
                :cljs [cljs.reader :as edn])
             [airlineops.registry :as registry]
+            [kotoba.reservation :as res]
             [langchain.db :as d]))
 
 (defprotocol Store
@@ -50,6 +51,26 @@
 
 ;; ----------------------------- demo data -----------------------------
 
+(defn- econ
+  "One economy seat bucket for a flight-date -- `kotoba.reservation`
+  ground truth the governor recomputes availability from."
+  [flight-no date capacity sold]
+  (res/bucket flight-no date :economy capacity :sold sold))
+
+(defn- y-plan
+  "One filed economy rate plan -- `kotoba.reservation` ground truth the
+  governor recomputes the fare from. Amounts are integer minor units
+  (JPY: 1 = 1 yen); modifiers are integer basis points."
+  [id base currency]
+  (res/rate-plan id :economy base currency
+                 :refundable? true
+                 :min-units 1
+                 :advance-days 3
+                 :weekday-bp {6 12000}                    ; Saturday +20%
+                 :date-bp {"2026-08-13" 15000}            ; Obon peak +50%
+                 :fees [{:label "airport facility" :amount 2900}]
+                 :tax-bp 1000))
+
 (defn demo-data
   "A small, self-contained flight set covering the clean path plus the
   governor's own HARD checks, so the actor + tests run offline."
@@ -59,27 +80,44 @@
                 :origin "HND" :destination "ITM" :carrier "Local Regional Air"
                 :certification-verified? true
                 :safety-concern-raised? false :safety-concern-resolved? false
-                :jurisdiction "JPN" :status :scheduled}
+                :jurisdiction "JPN" :status :scheduled
+                :bucket (econ "JL101" "2026-08-01" 180 100)
+                :rate-plan (y-plan "Y-FLEX" 42000 "JPY")}
     "flight-2" {:id "flight-2" :flight-number "AT202" :aircraft-registration "AT202X"
                 :origin "Atlantis Intl" :destination "Atlantis City" :carrier "Atlantis Air"
                 :certification-verified? true
                 :safety-concern-raised? false :safety-concern-resolved? false
-                :jurisdiction "ATL" :status :scheduled}
+                :jurisdiction "ATL" :status :scheduled
+                :bucket (econ "AT202" "2026-08-01" 100 0)
+                :rate-plan (y-plan "Y-ATL" 30000 "JPY")}
     "flight-3" {:id "flight-3" :flight-number "JL303" :aircraft-registration "JA303A"
                 :origin "HND" :destination "CTS" :carrier "Local Regional Air"
                 :certification-verified? false
                 :safety-concern-raised? false :safety-concern-resolved? false
-                :jurisdiction "JPN" :status :scheduled}
+                :jurisdiction "JPN" :status :scheduled
+                :bucket (econ "JL303" "2026-08-02" 120 0)
+                :rate-plan (y-plan "Y-JL303" 39000 "JPY")}
     "flight-4" {:id "flight-4" :flight-number "JL404" :aircraft-registration "JA404A"
                 :origin "HND" :destination "FUK" :carrier "Local Regional Air"
                 :certification-verified? true
                 :safety-concern-raised? true :safety-concern-resolved? false
-                :jurisdiction "JPN" :status :scheduled}
+                :jurisdiction "JPN" :status :scheduled
+                :bucket (econ "JL404" "2026-08-03" 180 20)
+                :rate-plan (y-plan "Y-JL404" 42000 "JPY")}
     "flight-5" {:id "flight-5" :flight-number "US505" :aircraft-registration "N505AA"
                 :origin "SFO" :destination "LAX" :carrier "US Regional Air"
                 :certification-verified? true
                 :safety-concern-raised? false :safety-concern-resolved? false
-                :jurisdiction "USA" :status :scheduled}}})
+                :jurisdiction "USA" :status :scheduled
+                :bucket (econ "US505" "2026-08-04" 70 68)
+                :rate-plan (y-plan "Y-US" 18000 "USD")}
+    "flight-6" {:id "flight-6" :flight-number "JL606" :aircraft-registration "JA606A"
+                :origin "HND" :destination "OKA" :carrier "Local Regional Air"
+                :certification-verified? true
+                :safety-concern-raised? false :safety-concern-resolved? false
+                :jurisdiction "JPN" :status :scheduled
+                :bucket (econ "JL606" "2026-08-05" 60 60)
+                :rate-plan (y-plan "Y-JL606" 42000 "JPY")}}})
 
 ;; ----------------------------- shared commit logic -----------------------------
 
@@ -87,19 +125,48 @@
   "Backend-agnostic coordination-record draft -- looks up the flight
   via the protocol and drafts the record for `op`, returns
   {:result .. :flight-patch ..} for the caller to persist.
-  `:flight-patch` is ALWAYS empty except for `:flag-flight-safety-
-  concern`, which sets `:safety-concern-raised? true` -- flagging is
-  the only one of the four ops that changes flight-safety-relevant
-  ground truth, and even then it never sets `:safety-concern-
-  resolved?` (resolving a concern is outside this actor's remit)."
-  [s op flight-id]
+  Only two ops change ground truth:
+
+    `:flag-flight-safety-concern` -> sets `:safety-concern-raised? true`,
+                                    and never sets `:safety-concern-
+                                    resolved?` (resolving a concern is
+                                    outside this actor's remit).
+    `:place-booking`              -> places a HOLD on the seat bucket.
+                                    NEVER a sale: converting a hold into
+                                    a sold seat (ticketing, payment
+                                    capture) is the operator's own
+                                    revenue system's act and is outside
+                                    this actor's op-allowlist, so this
+                                    never calls
+                                    `kotoba.reservation/confirm-hold`.
+
+  `:log-flight-record`, `:schedule-flight-operation`,
+  `:coordinate-maintenance` and `:quote-fare` patch nothing -- a quote
+  is a draft, not an inventory movement."
+  [s op flight-id payload]
   (let [fl (flight s flight-id)
         seq-n (next-sequence s (:jurisdiction fl) op)
-        result (registry/register-coordination-record op flight-id (:jurisdiction fl) seq-n)]
+        result (registry/register-coordination-record op flight-id (:jurisdiction fl) seq-n payload)]
     {:result result
-     :flight-patch (if (= op :flag-flight-safety-concern)
-                     {:safety-concern-raised? true}
-                     {})}))
+     :flight-patch
+     (case op
+       :flag-flight-safety-concern {:safety-concern-raised? true}
+
+       :place-booking
+       (let [h (res/hold (or (:hold-id payload) (str flight-id "-h"))
+                         (:bucket fl)
+                         (or (:qty payload) 1)
+                         (:expires-at payload))
+             placed (res/place-hold (:bucket fl) h)]
+         ;; The governor already recomputed availability and refused an
+         ;; overselling proposal. This is the belt-and-braces re-check at
+         ;; the write itself, so a bug upstream still cannot oversell.
+         (if (:reservation/ok? placed)
+           {:bucket (:reservation/bucket placed)}
+           (throw (ex-info "booking would oversell -- refused at the SSoT write"
+                           {:flight flight-id :error (:reservation/error placed)}))))
+
+       {})}))
 
 ;; ----------------------------- MemStore (default) -----------------------------
 
@@ -110,10 +177,10 @@
   (ledger [_] (:ledger @a))
   (coordination-history [_] (:coordination-history @a))
   (next-sequence [_ jurisdiction op] (get-in @a [:sequences [jurisdiction op]] 0))
-  (commit-record! [s {:keys [effect op path]}]
+  (commit-record! [s {:keys [effect op path payload]}]
     (when (= :propose effect)
       (let [flight-id (first path)
-            {:keys [result flight-patch]} (draft-coordination-record! s op flight-id)
+            {:keys [result flight-patch]} (draft-coordination-record! s op flight-id payload)
             jurisdiction (:jurisdiction (flight s flight-id))]
         (swap! a (fn [state]
                    (-> state
@@ -150,7 +217,7 @@
 
 (defn- flight->tx [{:keys [id flight-number aircraft-registration origin destination carrier
                           certification-verified? safety-concern-raised? safety-concern-resolved?
-                          jurisdiction status]}]
+                          jurisdiction status bucket rate-plan]}]
   (cond-> {:flight/id id}
     flight-number                                          (assoc :flight/flight-number flight-number)
     aircraft-registration                                    (assoc :flight/aircraft-registration aircraft-registration)
@@ -161,12 +228,19 @@
     (some? safety-concern-raised?)                                       (assoc :flight/safety-concern-raised? safety-concern-raised?)
     (some? safety-concern-resolved?)                                       (assoc :flight/safety-concern-resolved? safety-concern-resolved?)
     jurisdiction                                                              (assoc :flight/jurisdiction jurisdiction)
-    status                                                                      (assoc :flight/status status)))
+    status                                                                      (assoc :flight/status status)
+    ;; kotoba.reservation values are compound, so they are stored as EDN
+    ;; string blobs -- langchain.db would otherwise expand them into
+    ;; sub-entities and the integer-keyed :rate/weekday-bp map would not
+    ;; survive the round trip.
+    bucket                                                                        (assoc :flight/bucket (enc bucket))
+    rate-plan                                                                       (assoc :flight/rate-plan (enc rate-plan))))
 
 (def ^:private flight-pull
   [:flight/id :flight/flight-number :flight/aircraft-registration :flight/origin :flight/destination
    :flight/carrier :flight/certification-verified? :flight/safety-concern-raised?
-   :flight/safety-concern-resolved? :flight/jurisdiction :flight/status])
+   :flight/safety-concern-resolved? :flight/jurisdiction :flight/status
+   :flight/bucket :flight/rate-plan])
 
 (defn- pull->flight [m]
   (when (:flight/id m)
@@ -176,7 +250,9 @@
      :certification-verified? (boolean (:flight/certification-verified? m))
      :safety-concern-raised? (boolean (:flight/safety-concern-raised? m))
      :safety-concern-resolved? (boolean (:flight/safety-concern-resolved? m))
-     :jurisdiction (:flight/jurisdiction m) :status (:flight/status m)}))
+     :jurisdiction (:flight/jurisdiction m) :status (:flight/status m)
+     :bucket (dec* (:flight/bucket m))
+     :rate-plan (dec* (:flight/rate-plan m))}))
 
 (defrecord DatomicStore [conn]
   Store
@@ -199,10 +275,10 @@
               :where [?e :sequence/key ?k] [?e :sequence/next ?n]]
             (d/db conn) (pr-str [jurisdiction op]))
         0))
-  (commit-record! [s {:keys [effect op path]}]
+  (commit-record! [s {:keys [effect op path payload]}]
     (when (= :propose effect)
       (let [flight-id (first path)
-            {:keys [result flight-patch]} (draft-coordination-record! s op flight-id)
+            {:keys [result flight-patch]} (draft-coordination-record! s op flight-id payload)
             jurisdiction (:jurisdiction (flight s flight-id))
             key-str (pr-str [jurisdiction op])
             next-n (inc (next-sequence s jurisdiction op))]

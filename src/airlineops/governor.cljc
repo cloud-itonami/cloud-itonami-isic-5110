@@ -85,12 +85,36 @@
                                       concern).
 
   A sixth check, no-spec-basis, is evaluated UNCONDITIONALLY across all
-  four ops: every coordination proposal must cite an official civil-
+  ops: every coordination proposal must cite an official civil-
   aviation-authority source for the flight's own jurisdiction
-  (`airlineops.facts`), never an invented one."
+  (`airlineops.facts`), never an invented one.
+
+  Two further checks apply to the COMMERCIAL ops (`:quote-fare`,
+  `:place-booking`), and they are a different kind of check from the
+  six above -- they are ground-truth RECOMPUTES rather than
+  restatements of what the advisor claimed:
+
+    7. Fare mismatch              -- re-run `kotoba.reservation/
+                                     quote-for` against the flight's
+                                     own filed rate plan and reject a
+                                     stated total that does not match.
+                                     An LLM can state a fare; it cannot
+                                     be trusted to have done the
+                                     arithmetic.
+    8. Oversell                   -- re-run `kotoba.reservation/
+                                     availability-supports?` against
+                                     the flight's own seat bucket and
+                                     reject a booking for a seat that
+                                     does not exist.
+
+  For both, a check that CANNOT be performed (no rate plan, no request,
+  no stated total, no seat bucket) is itself a HARD violation. This
+  governor does not assume compliance when it is structurally unable to
+  verify it."
   (:require [clojure.string :as str]
             [airlineops.facts :as facts]
-            [airlineops.store :as store]))
+            [airlineops.store :as store]
+            [kotoba.reservation :as res]))
 
 (def confidence-floor 0.6)
 
@@ -99,7 +123,13 @@
   other vocabulary -- a proposal naming any other op is a HARD
   violation, not merely unrecognized."
   #{:log-flight-record :schedule-flight-operation
-    :flag-flight-safety-concern :coordinate-maintenance})
+    :flag-flight-safety-concern :coordinate-maintenance
+    :quote-fare :place-booking})
+
+(def priced-ops
+  "Ops whose proposals state a fare and must therefore survive an
+  independent recompute against the flight's own filed rate plan."
+  #{:quote-fare :place-booking})
 
 (def high-stakes
   "Stakes grave enough to always require a human, even when clean.
@@ -125,7 +155,16 @@
     "authorize departure despite the mechanical fault"
     "sign off the maintenance release"
     "approve the maintenance release back to service"
-    "return the aircraft to service"})
+    "return the aircraft to service"
+    ;; commercial finalization: this actor drafts a quote and holds a
+    ;; seat, but issuing the ticket, taking the money and filing the
+    ;; fare are the operator's own systems' acts, not this actor's.
+    "issue the ticket"
+    "issue the e-ticket"
+    "capture the payment"
+    "charge the passenger"
+    "file the fare with the authority"
+    "confirm the seat as sold"})
 
 ;; ----------------------------- checks -----------------------------
 
@@ -182,6 +221,58 @@
         [{:rule :open-safety-concern-blocks-op
           :detail (str subject " は未解決の運航安全上の懸念がある -- flag以外の提案は進められない")}]))))
 
+(defn- fare-mismatch-violations
+  "RECOMPUTE the fare from the flight's own filed rate plan and reject a
+  stated total that does not match it.
+
+  This is a ground-truth RECOMPUTE, not a restatement of the advisor's
+  claim: an LLM can state a fare, but it cannot be trusted to have
+  actually done the arithmetic. `kotoba.reservation` is integer-only
+  and clock-free precisely so this recompute is bit-identical to the
+  advisor's.
+
+  A check that CANNOT be performed is a violation, not a pass: a priced
+  proposal with no rate plan on the flight, no `:request` to price, or
+  no stated `:total` is un-recomputable, and this governor refuses to
+  wave through a fare it was structurally unable to verify."
+  [{:keys [op subject]} st proposal]
+  (when (contains? priced-ops op)
+    (let [fl (store/flight st subject)
+          plan (:rate-plan fl)
+          {:keys [request total]} (:value proposal)]
+      (cond
+        (nil? plan)
+        [{:rule :fare-not-recomputable
+          :detail (str subject " に運賃計算の基礎となる料金設定(rate plan)が無い -- 提示運賃を独立に再計算できない")}]
+
+        (or (nil? request) (nil? total))
+        [{:rule :fare-not-recomputable
+          :detail "提案に再計算可能な :request / :total が無い -- 独立検証できない運賃は承認しない"}]
+
+        (not (res/quote-matches-claim? plan request total))
+        [{:rule :fare-mismatch
+          :detail (str "提示運賃 " total " は料金設定からの再計算結果 "
+                       (res/quote-total (res/quote-for plan request)) " と一致しない")}]))))
+
+(defn- oversell-violations
+  "RECOMPUTE availability from the flight's own seat bucket and reject a
+  booking for a seat that does not exist. As with the fare check, an
+  un-performable check is a violation, never a pass."
+  [{:keys [op subject]} st proposal]
+  (when (= op :place-booking)
+    (let [fl (store/flight st subject)
+          bucket (:bucket fl)
+          qty (:qty (:value proposal))]
+      (cond
+        (or (nil? bucket) (nil? qty))
+        [{:rule :availability-not-recomputable
+          :detail (str subject " の座席在庫または要求座席数が無い -- 提案を独立に検証できない")}]
+
+        (not (res/availability-supports? [[bucket qty]]))
+        [{:rule :oversell
+          :detail (str "要求 " qty " 席に対し販売可能残は " (res/available bucket)
+                       " 席 -- 存在しない座席は販売しない")}]))))
+
 (defn check
   "Censors an AirlineOps-LLM proposal against the governor rules.
   Returns {:ok? bool :violations [..] :confidence c :escalate? bool
@@ -193,7 +284,9 @@
                            (finalize-authority-scope-violations request proposal)
                            (no-spec-basis-violations request st proposal)
                            (certification-unverified-violations request st)
-                           (open-safety-concern-violations request st)))
+                           (open-safety-concern-violations request st)
+                           (fare-mismatch-violations request st proposal)
+                           (oversell-violations request st proposal)))
         conf (:confidence proposal 0.0)
         low? (< conf confidence-floor)
         stakes? (boolean (high-stakes (:stake proposal)))
