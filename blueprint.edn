@@ -6,7 +6,11 @@
  :itonami.blueprint/social-impact [:aviation-safety :regional-connectivity :passenger-rights]
  :itonami.blueprint/governor :aviation-safety-governor
  :itonami.blueprint/robotics true
- :itonami.blueprint/required-technologies [:robotics :identity :forms :dmn :bpmn :audit-ledger :logistics]
- :itonami.blueprint/optional-technologies [:optimization]
+ :itonami.blueprint/required-technologies [:reservation :identity :forms :dmn :bpmn :audit-ledger :logistics]
+ ;; :robotics is OPTIONAL, not required: the physical layer (ground
+ ;; handling, baggage, maintenance inspection robots) is not implemented
+ ;; in this R0, and listing it as required-and-implemented would be a
+ ;; false readiness claim to `kotoba-lang/industry`.
+ :itonami.blueprint/optional-technologies [:robotics :optimization]
  :itonami.blueprint/status :public-oss
  :itonami.blueprint/maturity :implemented}

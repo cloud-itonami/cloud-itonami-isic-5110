@@ -38,6 +38,7 @@
             [clojure.string :as str]
             [airlineops.facts :as facts]
             [airlineops.store :as store]
+            [kotoba.reservation :as res]
             [langchain.model :as model]))
 
 (defn- confidence-for [fl cites]
@@ -130,6 +131,83 @@
      :stake     nil
      :confidence (confidence-for fl cites)}))
 
+;; ----------------------------- commercial ops -----------------------------
+;;
+;; WHY THE ARITHMETIC IS HERE AND CHECKED THERE: for the two priced ops
+;; this advisor computes the fare with `kotoba.reservation/quote-for`
+;; off the flight's OWN filed rate plan and states the total it
+;; computed. That is a convenience, not an authority --
+;; `airlineops.governor` RECOMPUTES the same quote from the same ground
+;; truth and holds on any mismatch. A production LLM swapped in for
+;; this mock can state any number it likes; it will not get a wrong one
+;; committed.
+
+(defn- fare-request
+  "The priceable request for a flight: the dates to price and the seat
+  count. Defaults to the flight's own seat-bucket date and one seat, so
+  a caller that supplies nothing still produces something the governor
+  can recompute rather than an un-verifiable blank."
+  [fl {:keys [dates qty]}]
+  {:dates (or dates [(:inv/date (:bucket fl))])
+   :qty   (or qty 1)})
+
+(defn- propose-quote-fare
+  "Draft a fare quote off the flight's own filed rate plan. A quote is a
+  commercial draft, not a ticket and not a seat: it moves no inventory."
+  [db {:keys [subject] :as request}]
+  (let [fl (store/flight db subject)
+        iso3 (:jurisdiction fl)
+        cites (facts/citation iso3)
+        plan (:rate-plan fl)
+        req (fare-request fl request)
+        q (when plan (res/quote-for plan req))]
+    {:summary   (str subject " 運賃見積案 " (:qty req) "席 × " (count (:dates req)) "区間"
+                     (when q (str " = " (res/quote-total q) " " (:quote/currency q))))
+     :rationale (str "届出済み料金設定(" (:rate/id plan) ")からの算定。"
+                     "本アクターに運航可否の決定権限は無く、発券や収入計上も行わない。"
+                     "提示額はガバナーが同じ料金設定から再計算して検証する。")
+     :cites     (vec cites)
+     :effect    :propose
+     :value     (cond-> {:kind :fare-quote :request req}
+                  q (assoc :total (res/quote-total q)
+                           :currency (:quote/currency q)
+                           :lines (:quote/lines q)))
+     :stake     nil
+     :confidence (confidence-for fl cites)}))
+
+(defn- propose-place-booking
+  "Draft a seat-booking HOLD against the flight's own seat inventory,
+  priced off its own rate plan. A hold is not a sale: converting one
+  into a sold seat (ticketing, payment capture) is the operator's
+  revenue-accounting system's act, outside this actor's op-allowlist."
+  [db {:keys [subject hold-id expires-at] :as request}]
+  (let [fl (store/flight db subject)
+        iso3 (:jurisdiction fl)
+        cites (facts/citation iso3)
+        plan (:rate-plan fl)
+        req (fare-request fl request)
+        qty (:qty req)
+        q (when plan (res/quote-for plan req))
+        bucket (:bucket fl)]
+    {:summary   (str subject " 座席仮押さえ案 " qty "席"
+                     (when bucket (str " (販売可能残 " (res/available bucket) "席)"))
+                     (when q (str " " (res/quote-total q) " " (:quote/currency q))))
+     :rationale (str "証明検証済み=" (boolean (:certification-verified? fl))
+                     " -- 在庫に対する仮押さえの提案。発券・売上計上は行わず、"
+                     "本アクターに運航可否の決定権限も無い。"
+                     "在庫と提示額はガバナーが同じ元データから再計算して検証する。")
+     :cites     (vec cites)
+     :effect    :propose
+     :value     (cond-> {:kind :seat-booking-hold
+                         :request req
+                         :qty qty
+                         :hold-id (or hold-id (str subject "-h"))
+                         :expires-at expires-at}
+                  q (assoc :total (res/quote-total q)
+                           :currency (:quote/currency q)))
+     :stake     nil
+     :confidence (confidence-for fl cites)}))
+
 (defn infer
   "Route a request to the right proposal generator.
   request: {:op kw :subject id ...op-specific...}"
@@ -139,6 +217,8 @@
     :schedule-flight-operation  (propose-schedule-flight-operation db request)
     :flag-flight-safety-concern (propose-flag-flight-safety-concern db request)
     :coordinate-maintenance     (propose-coordinate-maintenance db request)
+    :quote-fare                 (propose-quote-fare db request)
+    :place-booking              (propose-place-booking db request)
     {:summary "未対応の操作 -- 閉じたoperations-coordination許可リストの範囲外"
      :rationale (str op) :cites [] :effect :noop :stake nil :confidence 0.0}))
 
