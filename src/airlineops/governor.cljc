@@ -111,7 +111,7 @@
   no stated total, no seat bucket) is itself a HARD violation. This
   governor does not assume compliance when it is structurally unable to
   verify it."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [airlineops.facts :as facts]
             [airlineops.store :as store]
             [kotoba.reservation :as res]))
@@ -184,7 +184,7 @@
   "The proposal's own text drifting toward FINALIZING a flight-safety-
   authority decision is a HARD, PERMANENT block -- see ns docstring."
   [_request proposal]
-  (let [text (str/lower-case (str (:summary proposal) " " (:rationale proposal) " " (pr-str (:cites proposal))))]
+  (let [text (str/lower (str (:summary proposal) " " (:rationale proposal) " " (pr-str (:cites proposal))))]
     (when (some #(str/includes? text %) finalize-authority-phrases)
       [{:rule :finalize-authority-scope-violation
         :detail "提案テキストが運航安全当局の最終判断/実行行為に該当する -- 恒久的にブロック、人間承認でも解除不可"}])))
