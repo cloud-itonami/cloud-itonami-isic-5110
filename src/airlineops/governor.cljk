@@ -33,7 +33,7 @@
   FINALIZATION/EXECUTION ACTION itself (\"finalize the go-no-go
   decision\", \"clear the aircraft for departure\", \"override the
   weather hold decision\") rather than the bare topic noun -- see
-  `test/airlineops/governor_contract_test.clj`'s
+  `test/airlineops/governor_contract_test.cljk`'s
   `default-advisor-proposals-never-self-trip-finalize-authority-scope`
   test, which asserts this directly against every default proposal for
   all four ops.

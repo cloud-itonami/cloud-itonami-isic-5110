@@ -72,7 +72,7 @@ decision") rather than a bare topic noun ("safety"/"weather"/
 safety-concern` legitimately talks about mechanical faults and weather
 as the CONTENT of a concern being flagged -- a bare-noun term list
 would have self-tripped on exactly this op's own happy path.
-`test/airlineops/governor_contract_test.clj`'s
+`test/airlineops/governor_contract_test.cljk`'s
 `default-advisor-proposals-never-self-trip-finalize-authority-scope`
 asserts directly, for all four ops, that the default mock advisor's
 own proposals never trip this check.
@@ -158,7 +158,7 @@ flip.
   certification-verification and safety-concern-resolution facts --
   this actor coordinates around them but never sets them itself.
 - `MemStore` ‖ `DatomicStore` parity is proven by
-  `test/airlineops/store_contract_test.clj`.
+  `test/airlineops/store_contract_test.cljk`.
 - The self-tripping-bug-class regression is covered by a dedicated
   test, not just avoided by convention.
 
