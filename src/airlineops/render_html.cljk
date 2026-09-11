@@ -6,7 +6,7 @@
   generator at all. This namespace drives the REAL actor stack
   (`airlineops.operation` -> `airlineops.governor` ->
   `airlineops.store`) through a scenario adapted from this repo's own
-  `airlineops.sim` demo driver (`clojure -M:dev:run`, confirmed
+  `airlineops.sim` demo driver (`kbb -M:dev:run`, confirmed
   BEFORE writing this file to produce a sensible ledger against the
   real seeded flight ids `flight-1`..`flight-6` -- so it was safe to
   reuse rather than author from scratch), trimmed to a representative
@@ -17,7 +17,7 @@
   across reruns against the same seed (verify by diffing two
   consecutive runs).
 
-  Usage: `clojure -M:dev:render-html [out-file]`
+  Usage: `kbb -M:dev:render-html [out-file]`
   (default `docs/samples/operator-console.html`)."
   (:require [jp-go-dds.skin]
             [kotoba.lang.text :as str]
@@ -188,7 +188,7 @@
      "<main>\n"
      "  <section class=\"card\">\n"
      "    <h2>Flights</h2>\n"
-     "    <p class=\"muted\">Demo snapshot — build-time-generated from <code>airlineops.store</code> via <code>airlineops.render-html</code> (<code>clojure -M:dev:render-html</code>). Every row is real governor/store output, not scaffolding.</p>\n"
+     "    <p class=\"muted\">Demo snapshot — build-time-generated from <code>airlineops.store</code> via <code>airlineops.render-html</code> (<code>kbb -M:dev:render-html</code>). Every row is real governor/store output, not scaffolding.</p>\n"
      "    <table>\n"
      "      <thead><tr><th>Flight</th><th>Number</th><th>Route</th><th>Jurisdiction</th><th>Certification verified</th><th>Safety concern</th><th>Last op status</th></tr></thead>\n"
      "      <tbody>\n"
