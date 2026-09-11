@@ -26,7 +26,7 @@
   the governor's other checks come back. `airlineops.governor`'s
   `high-stakes` gate (keyed on `:coordination/flag-safety-concern`)
   enforces the same invariant independently -- two layers, not one,
-  agree on this. See `test/airlineops/phase_test.clj`'s
+  agree on this. See `test/airlineops/phase_test.cljk`'s
   `flag-flight-safety-concern-never-auto-at-any-phase`."
   )
 
