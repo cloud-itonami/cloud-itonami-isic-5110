@@ -1,5 +1,5 @@
 (ns airlineops.sim
-  "Demo driver -- `clojure -M:dev:run`. Walks flight-1 through a clean
+  "Demo driver -- `kbb -M:dev:run`. Walks flight-1 through a clean
   operations-coordination lifecycle (log -> schedule -> coordinate
   maintenance -> flag a safety concern), then shows what flagging the
   concern does to the SAME flight (blocks further logging), then walks

@@ -58,7 +58,7 @@ compliance when it is structurally unable to verify it. `reservation`
 is integer-only and clock-free precisely so the recompute is
 bit-identical to the advisor's own computation.
 
-The demo (`clojure -M:dev:run`) drives an advisor that deliberately
+The demo (`kbb -M:dev:run`) drives an advisor that deliberately
 states a fare it did not compute, and shows it being held.
 
 Commercial finalization is out of scope on the same footing as
@@ -105,9 +105,9 @@ Resolves via [`kotoba-lang/industry`](https://github.com/kotoba-lang/industry)
 ## Run it
 
 ```bash
-clojure -M:lint        # clj-kondo, errors fail
-clojure -M:dev:test    # 60 tests, 272 assertions
-clojure -M:dev:run     # the demo: clean path + every HARD-hold scenario
+kbb -M:lint        # clj-kondo, errors fail
+kbb -M:dev:test    # 60 tests, 272 assertions
+kbb -M:dev:run     # the demo: clean path + every HARD-hold scenario
 ```
 
 See [`docs/business-model.md`](docs/business-model.md) and
