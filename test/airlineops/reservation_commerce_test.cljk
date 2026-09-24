@@ -7,7 +7,7 @@
   `kotoba.reservation`, not restatements of what the advisor claimed.
   The tests therefore all take the same shape -- make the advisor claim
   something false, and assert the governor catches it by recomputing."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [langgraph.graph :as g]
             [airlineops.airlineopsllm :as llm]
             [airlineops.governor :as governor]

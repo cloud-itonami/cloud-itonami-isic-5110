@@ -1,5 +1,5 @@
 (ns airlineops.registry-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [kotoba.test :refer [deftest is]]
             [airlineops.registry :as r]))
 
 ;; ----------------------------- register-coordination-record -----------------------------
