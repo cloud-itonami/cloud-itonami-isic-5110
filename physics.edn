@@ -1,0 +1,44 @@
+;; What this vertical's robot physically does, declared for
+;; kotoba.robotics.process (kotoba-lang/robotics). `kbb -M:dev:physics` runs it.
+;;
+;; README "Robotics premise": for a passenger airline (ISIC 5110) robots do
+;; ground handling, baggage handling and maintenance inspection, gated by the
+;; independent Aviation Safety Governor. Physical work modelled here: an arm
+;; loading checked bags from the make-up belt into a baggage cart, a tug
+;; towing a baggage train from the make-up area to the aircraft stand, and a
+;; tensile check of an aluminium skin coupon whose section has been thinned
+;; by corrosion clean-up.
+;;
+;; Every number without a cited source is marked `estimate` in its :basis.
+;; Replacing an estimate with a sourced value is this bot's growth work.
+{:physics/schema "itonami.physical-ai.spec.v1"
+ :repo "cloud-itonami/cloud-itonami-isic-5110"
+ :cases
+ [{:id :bag-belt-to-cart
+   :kind :manipulator
+   :procedure "baggage arm picks a checked bag off the make-up belt and places it on the top tier of a baggage cart"
+   :params {:l1-m 0.80 :l2-m 0.70 :m1-kg 14.0 :m2-kg 9.0
+            :from [1.00 0.10] :to [0.40 1.10] :duration-s 2.0 :steps 500}
+   :sweep {:param :payload-kg :values [8.0 15.0 23.0 32.0 45.0]}
+   :quantity :peak-tau1-nm
+   :limit {:max 500.0 :basis "estimate: continuous shoulder torque of a ~20 kg-payload palletising arm class"}
+   :boundary {:lo 1.0 :hi 120.0}}
+  {:id :baggage-train-to-stand
+   :kind :transport
+   :procedure "tug tows a baggage train from the make-up area to the aircraft stand"
+   :params {:mass-kg 2500.0 :distance-m 450.0 :v-max-mps 4.0 :a-max-mps2 0.5
+            :brake-decel-mps2 1.5 :drive-force-n 3500.0 :crr 0.015
+            :cog-height-m 0.7 :support-half-length-m 0.9 :max-time-s 1800.0}
+   :sweep {:param :payload-kg :values [500.0 1500.0 3000.0 4500.0 6000.0]}
+   :quantity :cycle-time-s
+   :limit {:max 135.0 :basis "estimate: one tow leg must leave margin inside a short-haul turnaround's bag-loading window"}
+   :boundary {:lo 100.0 :hi 20000.0}}
+  {:id :skin-coupon-after-blendout
+   :kind :material
+   :procedure "tensile-test a 2024-T3 skin coupon whose cross-section was reduced by corrosion blend-out"
+   :params {:length-m 0.05 :youngs-modulus-pa 73.1e9 :yield-stress-pa 345.0e6 :hardening-pa 0.7e9
+            :density-kg-m3 2780.0 :max-force-n 12000.0}
+   :sweep {:param :area-m2 :values [2.5e-5 2.3e-5 2.1e-5 1.9e-5 1.7e-5]}
+   :quantity :yield-force-n
+   :limit {:min 7500.0 :basis "estimate: rework threshold at ~87 % of the pristine coupon's yield load (2024-T3 yield 345 MPa is a handbook typical value, not yet cited)"}
+   :boundary {:lo 1.5e-5 :hi 2.5e-5}}]}
