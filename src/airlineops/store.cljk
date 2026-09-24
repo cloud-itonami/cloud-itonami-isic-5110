@@ -33,7 +33,7 @@
   on that flight (`airlineops.governor`'s open-safety-concern check) --
   but resolving a concern is likewise OUTSIDE this actor's own op-
   allowlist (a real flight-safety authority's call, not this actor's)."
-  (:require #?(:clj  [clojure.edn :as edn]
+  (:require #?(:clj  [kotoba.lang.edn :as edn]
                :cljs [cljs.reader :as edn])
             [airlineops.registry :as registry]
             [kotoba.reservation :as res]
